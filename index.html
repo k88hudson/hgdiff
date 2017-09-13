@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.6.0/styles/github.min.css">
+    <link rel="stylesheet" type="text/css" href="node_modules/diff2html/dist/diff2html.css">
+    <style>
+      body {
+        font-family: sans-serif;
+      }
+      #error {
+        color: red;
+      }
+      .hidden {
+        display: none;
+      }
+      .field {
+        display: flex;
+      }
+      .left {
+        flex-grow: 1;
+      }
+      input {
+        display: block;
+        width: 100%;
+        padding: 5px;
+      }
+      label {
+        display: block;
+      }
+      #loading {
+        margin-top: 20px;
+      }
+    </style>
+    <script>if (typeof module === 'object') {window.module = module; module = undefined;}</script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/2.2.3/jquery.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.6.0/highlight.min.js"></script>
+    <script src="node_modules/diff2html/dist/diff2html.js"></script>
+    <script src="node_modules/diff2html/dist/diff2html-ui.js"></script>
+    <title>Hello World!</title>
+  </head>
+  <body>
+    <form>
+      <label>Directory</label>
+      <div class="field">
+        <div class="left"><input id="directory" /></div>
+        <button id="submit">Submit</button>
+      </div>
+    </form>
+    <div id="loading" class="hidden">Loading...</div>
+    <main class="hidden">
+      <h3>Current bookmark: <span id="bookmark"></span>, rev: <span id="rev"></span></h3>
+      <div id="diff"></div>
+    </main>
+    <div id="error"></div>
+
+    <script>if (window.module) module = window.module;</script>
+    <script>
+      const {ipcRenderer} = require('electron');
+      const settings = require('electron').remote.require('electron-settings');
+      const mainEl = document.querySelector("main");
+      const loadingEl = document.getElementById("loading");
+      const errorEl = document.getElementById("error");
+      const diffEl = document.getElementById("diff");
+      const bookmarkEl = document.getElementById("bookmark");
+      const revEl = document.getElementById("rev");
+      const dirEl = document.getElementById("directory");
+      const buttonEl = document.getElementById("submit");
+
+      function main() {
+        let dir = settings.get("directory");
+        if (!dir) {
+          dir = '~/github/mozilla-central'
+          settings.set("directory", dir);
+        }
+        dirEl.value = dir;
+        buttonEl.addEventListener("click", () => {
+          settings.set("directory", dirEl.value);
+        });
+
+        if (!dir) {
+          return;
+        }
+
+        loadingEl.classList.remove("hidden");
+        ipcRenderer.send('get-diff');
+
+        ipcRenderer.on('diff-error', (event, error) => {
+          loadingEl.classList.add("hidden");
+          errorEl.innerHTML = error;
+        });
+
+        ipcRenderer.on('diff-info', (event, {diff, bookmark, rev}) => {
+          loadingEl.classList.add("hidden");
+          mainEl.classList.remove("hidden");
+
+          bookmarkEl.innerHTML = bookmark || "none";
+          revEl.innerHTML = rev;
+
+          if (!diff) {
+            diffEl.innerHTML = "You are on a clean central.";
+            return;
+          }
+
+          const diff2htmlUi = new Diff2HtmlUI({diff});
+          diff2htmlUi.draw('#diff', {showFiles: true});
+          diff2htmlUi.highlightCode('#diff');
+          diff2htmlUi.fileListCloseable('#diff', false);
+        });
+      }
+
+      main();
+    </script>
+  </body>
+</html>
